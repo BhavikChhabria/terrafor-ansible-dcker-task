@@ -1,0 +1,74 @@
+---
+- name: Deploy Docker container
+  hosts: my_virtual_machine
+  gather_facts: false
+  become: yes
+  become_user: root
+  become_method: sudo
+  tasks:
+    - name: Ensure Docker is installed
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+      notify: Restart Docker
+
+    - name: Ensure pip is installed
+      apt:
+        name: python3-pip
+        state: present
+
+    - name: Install Docker SDK for Python
+      become: yes
+      pip:
+        name: docker
+        state: present
+
+    - name: Copy Dockerfile to the VM
+      become: yes
+      copy:
+        src: /home/einfochips/Documents/Terraform_vm_create/Dockerfile
+        dest: /tmp/Dockerfile
+
+    - name: Copy index.html to the VM
+      become: yes
+      copy:
+        src: /home/einfochips/Documents/Terraform_vm_create/index.html
+        dest: /tmp/index.html 
+
+    - name: Build the Docker image
+      become: yes
+      command: docker build -t mission_success:latest /tmp
+
+    - name: Run the Docker container
+      become: yes
+      docker_container:
+        name: mission_success
+        image: mission_success:latest
+        state: started
+        ports:
+          - "80:80"
+
+    - name: Check if mission_success container is running
+      command: docker ps --filter "name=mission_success"
+      register: docker_container_status
+
+    - name: Debug Docker container status
+      become: yes
+      debug:
+        msg: "{{docker_container_status.stdout}}"
+
+    - name: Check port mapping for mission_success container
+      command: docker port mission_success
+      register: docker_port_output
+
+    - name: Debug Docker port output
+      debug:
+        msg: "{{docker_port_output.stdout}}"
+
+  handlers:
+    - name: Restart Docker
+      become: yes
+      service:
+        name: docker
+        state: restarted
